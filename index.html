@@ -1,0 +1,244 @@
+<html>
+  <head>
+    <link href="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.2/css/bootstrap.min.css" rel="stylesheet">
+    <script src="http://code.jquery.com/jquery-2.1.3.min.js"></script>
+    <script src="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.2/js/bootstrap.min.js"></script>
+    <script src="js/datatypes.js"></script>
+    <script src="js/utils.js"></script>
+
+    <script language="javascript">
+    var debug = true;
+
+    var config = {
+        'trigger'  : 'hello computer'
+      , 'language' : 'nl_NL'
+      , 'actions'  : [
+         {
+             'type'   : 'match-exact'
+           , 'action' : function(event) {
+                  alert('hello'+event);
+              }
+           , 'keywords' : ['what\'s','the','weather']
+         }
+      ]
+    };
+
+
+    //<--
+    function getGreeting() {
+       var date = new Date();
+       var hr = date.getHours();
+
+       var currtime_window='';
+       var data = [
+          [0, 11, "morning"],          //It is always better to use an array
+          [12, 17, "afternoon"],       //to save data
+          [18, 24, "night"]
+       ]
+
+       for(var i=0; i<data.length;i++){
+          if(hr >= data[i][0] && hr <= data[i][1]){
+             currtime_window = data[i][2];
+          }
+       }
+       return 'Good '+currtime_window+', how may i assist you?';
+    }
+
+    function setGreeting(id) {
+      document.getElementById(id).innerHTML = getGreeting();
+    }
+
+
+    var a_transcript = new Array();
+
+    function addTranscript(text, isFinal) {
+       b64text = Base64.encode(text) +'_'+a_transcript.length;
+       elemid  = 'TRANSCRIPT::'+b64text;
+
+       button = document.getElementById(elemid);
+       if (button) {
+         if (isFinal) {
+           button.className = 'btn btn-warning';
+         }
+       } else {
+         button       = document.createElement('button');
+         button.id    = elemid;
+         button.type  = 'button';
+         if (isFinal) {
+            button.className = 'btn btn-warning';
+            console.log('TEST IF THIS HAPPENS');
+         } else {
+            button.className = 'btn btn-info';
+         }
+         button.innerHTML = '&nbsp;'+ text +'&nbsp;';
+
+         a_transcript[ b64text ] = {
+           'timestamp': new Date()
+           , 'text': text
+           , 'elementid' : elemid
+         };
+         document.getElementById('elem_transcript_interperter').appendChild(button);
+       }
+
+    }
+
+
+
+    function updateTranscript() {
+      var currDate = new Date();
+      for (var k in a_transcript) {
+         if (a_transcript[k].timestamp!=null) {
+            elem = document.getElementById(a_transcript[k].elementid);
+            if (elem) {
+              timespan = dateAdd(a_transcript[k].timestamp,'second',3);
+              if ((timespan<currDate)&&(elem!=null)) {
+                 console.log('Removing:'+ a_transcript[k].text);
+                 document.getElementById('elem_transcript_interperter').removeChild(elem);
+                 delete a_transcript[k];
+              }
+            }
+
+         }
+      }
+
+
+
+    }
+
+    function switchState(elem_id) {
+      element = document.getElementById(elem_id);
+      console.log(element.disabled);
+    	element.disabled = !element.disabled ;
+    	if (element.disabled) {
+    	   element.value = 'Listening...';
+    	} else {
+    	   element.value = 'Click...';
+    	}
+    }
+    //--->
+
+
+
+    var recognition = new webkitSpeechRecognition();
+
+    var loop
+    function init() {
+      setGreeting('elem_greeting');
+
+      setInterval(
+        function() {
+          updateTranscript();
+        }
+      , 1000);
+
+			recognition.continuous = true;
+			recognition.interimResults = true;
+			recognition.lang = config.language;
+			final_transcript = '';
+
+			recognition.onresult  = function(event) {
+			   var interim_transcript = '';
+
+			   for (var i = event.resultIndex; i < event.results.length; ++i) {
+			   		if (event.results[i].isFinal) {
+			   		    speech_to_action(event.results[i][0].transcript.trim());
+			   			  console.log('<F>'+event.results[i][0].transcript);
+			   			  document.getElementById('elem_input_speech').value = event.results[i][0].transcript;
+			   		} else {
+			   		   interim_transcript += event.results[i][0].transcript;
+			   		   console.log('<T>'+event.results[i][0].transcript);
+			   		}
+
+			   		var words = event.results[i][0].transcript.trim().split(' ');
+			   		for (w=0;w<words.length;w++) {
+			   		   addTranscript(words[w],event.results[i].isFinal);
+			   		}
+			   }
+			}
+
+    	recognition.start();
+    }
+
+
+    function speech_to_action(str_input) {
+       var patt = new RegExp("^"+config.trigger);
+      // if (patt.test(str_input)) {
+          str_command = str_input.replace(patt,'').trim();
+
+          for (i=0;i<config.actions.length;i++) {
+              curr_action=config.actions[i];
+          		switch (config.actions[i].type) {
+          		   case 'match-exact' : if (test_match_exact( config.actions[i].keywords, str_command.split(' ') )) {
+          		                           console.log('EXACT FOUND');
+          		                           console.log(curr_action.keywords);
+          		                           curr_action.action( deduct_matches(str_command.split(' '), curr_action.keywords).join()) ;
+          		                           curr_action.action();
+          		                        }
+
+          		                        break;
+
+          		}
+
+          }
+
+     //  }
+    }
+
+    function test_match_exact(a_keywords, a_match) {
+        ret_value=true;
+        if (a_match.length>=a_keywords.length) {
+           for (i=0; i<a_keywords.length;i++) {
+              if (a_keywords[i]!=a_match[i]) {
+                 ret_value=false;
+              }
+           }
+        } else {
+          ret_value=false;
+        }
+
+        return ret_value;
+    }
+
+    function deduct_matches(a_input1, a_input2) {
+       deduced = [];
+       for (i1=0; i1<a_input1.length;i1++) {
+          found=false;
+          for (i2=0; i2<a_input2.length; i2++) {
+             if (a_input1[i1]==a_input2[i2]) {
+                found=true;
+                a_input1[i1]='';
+                break;
+             }
+          }
+          if (!found) {
+             deduced.push(a_input1[i1]);
+          }
+       }
+       console.log("RESULT");
+       console.log(deduced);
+    }
+
+    </script>
+  </head>
+  <body onload="init();">
+  <div class="container">
+    <div class="page-header">
+      <h1>Jarvis</h1>
+      <p class="lead" id="elem_greeting">Good morning..</p>
+    </div>
+
+    <div class="row">
+      <div class="col-md-1"></div>
+      <div class="col-md-2" id="elem_transcript_interperter">
+      </div>
+      <div class="col-md-6" style="cursor: hand;" onclick="switchState('elem_input_speech');">
+       <input id="elem_input_speech" type="text" class="form-control" value="Click to start" style="width: 100%" >
+      </div>
+      <div class="col-md-3"></div>
+    </div>
+
+
+
+  </div>
+  </body>
+</html>
